@@ -1,0 +1,36 @@
+body {
+    background-color: #f8f9fa;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: 1px solid rgba(0, 0, 0, 0.125);
+    margin-bottom: 1rem;
+}
+
+.investment-card {
+    transition: transform 0.2s;
+    cursor: pointer;
+}
+
+.investment-card:hover {
+    transform: translateY(-5px);
+}
+
+.profit-positive {
+    color: #198754;
+}
+
+.profit-negative {
+    color: #dc3545;
+}
+
+.navbar-brand {
+    font-weight: 600;
+}
+
+#portfolio-summary p {
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
