@@ -12,12 +12,16 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Database setup
-const db = new sqlite3.Database('./server/investments.db', (err) => {
+// Database setup - usa percorso assoluto per produzione
+const dbPath = process.env.NODE_ENV === 'production' 
+  ? '/tmp/investments.db' 
+  : './server/investments.db';
+
+const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error('Errore apertura database:', err.message);
   } else {
-    console.log('Connesso al database SQLite.');
+    console.log('Connesso al database SQLite:', dbPath);
     initializeDatabase();
   }
 });
@@ -36,6 +40,7 @@ function initializeDatabase() {
     tax_rate REAL,
     currency TEXT DEFAULT 'EUR',
     current_value REAL,
+    notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
@@ -69,12 +74,12 @@ app.get('/api/investments', (req, res) => {
 });
 
 app.post('/api/investments', (req, res) => {
-  const { title, isin, ticker, invested_amount, shares, purchase_price, purchase_date, type, tax_rate, currency } = req.body;
+  const { title, isin, ticker, invested_amount, shares, purchase_price, purchase_date, type, tax_rate, currency, notes } = req.body;
   
   db.run(
-    `INSERT INTO investments (title, isin, ticker, invested_amount, shares, purchase_price, purchase_date, type, tax_rate, currency) 
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [title, isin, ticker, invested_amount, shares, purchase_price, purchase_date, type, tax_rate, currency],
+    `INSERT INTO investments (title, isin, ticker, invested_amount, shares, purchase_price, purchase_date, type, tax_rate, currency, notes) 
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [title, isin, ticker, invested_amount, shares, purchase_price, purchase_date, type, tax_rate, currency, notes],
     function(err) {
       if (err) {
         res.status(500).json({ error: err.message });
@@ -86,13 +91,13 @@ app.post('/api/investments', (req, res) => {
 });
 
 app.put('/api/investments/:id', (req, res) => {
-  const { title, isin, ticker, invested_amount, shares, purchase_price, purchase_date, type, tax_rate, currency, current_value } = req.body;
+  const { title, isin, ticker, invested_amount, shares, purchase_price, purchase_date, type, tax_rate, currency, current_value, notes } = req.body;
   
   db.run(
     `UPDATE investments 
-     SET title = ?, isin = ?, ticker = ?, invested_amount = ?, shares = ?, purchase_price = ?, purchase_date = ?, type = ?, tax_rate = ?, currency = ?, current_value = ?
+     SET title = ?, isin = ?, ticker = ?, invested_amount = ?, shares = ?, purchase_price = ?, purchase_date = ?, type = ?, tax_rate = ?, currency = ?, current_value = ?, notes = ?
      WHERE id = ?`,
-    [title, isin, ticker, invested_amount, shares, purchase_price, purchase_date, type, tax_rate, currency, current_value, req.params.id],
+    [title, isin, ticker, invested_amount, shares, purchase_price, purchase_date, type, tax_rate, currency, current_value, notes, req.params.id],
     function(err) {
       if (err) {
         res.status(500).json({ error: err.message });
@@ -113,7 +118,18 @@ app.delete('/api/investments/:id', (req, res) => {
   });
 });
 
+// Route per la homepage
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+// Route per tutte le altre richieste
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
 // Avvio server
 app.listen(PORT, () => {
   console.log(`Server avviato sulla porta ${PORT}`);
+  console.log(`Ambiente: ${process.env.NODE_ENV || 'development'}`);
 });
