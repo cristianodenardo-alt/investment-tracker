@@ -3,7 +3,7 @@ services:
     name: investment-tracker
     env: node
     plan: free
-    buildCommand: npm install && npm rebuild
+    buildCommand: npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
