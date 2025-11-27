@@ -255,4 +255,4 @@ app.listen(PORT, () => {
   console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
   console.log(`💾 Database: ${dbPath}`);
   console.log(`❤️  Health check: http://localhost:${PORT}/api/health`);
-}); s
+});
