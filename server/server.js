@@ -13,113 +13,134 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Database setup - soluzione semplificata per Render
-let db;
-try {
-  // Prova prima con database persistente
-  const dbDir = process.env.NODE_ENV === 'production' ? '/tmp' : './server';
-  const dbPath = `${dbDir}/investments.db`;
-  
-  // Assicurati che la directory esista
+// Database setup ottimizzato per Render
+const getDbPath = () => {
   if (process.env.NODE_ENV === 'production') {
-    if (!fs.existsSync('/tmp')) {
-      fs.mkdirSync('/tmp', { recursive: true });
-    }
+    // Su Render, usa /tmp che è persistente
+    return '/tmp/investments.db';
+  } else {
+    // In sviluppo, usa cartella locale
+    return path.join(__dirname, 'investments.db');
   }
-  
-  db = new sqlite3.Database(dbPath, (err) => {
+};
+
+const dbPath = getDbPath();
+console.log(`Database path: ${dbPath}`);
+
+// Assicurati che la directory esista
+if (process.env.NODE_ENV === 'production') {
+  const dir = path.dirname(dbPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
+
+let db;
+
+try {
+  db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
     if (err) {
-      console.error('Errore con database persistente:', err.message);
-      // Fallback a database in memoria
+      console.error('Error opening database:', err.message);
+      // Fallback a database in memoria se persistente fallisce
+      console.log('Falling back to in-memory database');
       db = new sqlite3.Database(':memory:', (err) => {
         if (err) {
-          console.error('Errore anche con database in memoria:', err.message);
+          console.error('Error with in-memory database:', err.message);
         } else {
-          console.log('Connesso a database in memoria');
+          console.log('Connected to in-memory SQLite database');
           initializeDatabase();
         }
       });
     } else {
-      console.log('Connesso al database SQLite:', dbPath);
+      console.log(`Connected to SQLite database at: ${dbPath}`);
       initializeDatabase();
     }
   });
 } catch (error) {
-  console.error('Errore critico con database:', error);
-  // Database in memoria come ultima risorsa
-  db = new sqlite3.Database(':memory:', (err) => {
-    if (err) {
-      console.error('Errore fatale:', err.message);
-    } else {
-      console.log('Connesso a database in memoria (fallback)');
-      initializeDatabase();
-    }
-  });
+  console.error('Critical database error:', error);
+  // Ultimo fallback
+  db = new sqlite3.Database(':memory:');
+  initializeDatabase();
 }
 
 function initializeDatabase() {
-  db.run(`CREATE TABLE IF NOT EXISTS investments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    isin TEXT,
-    ticker TEXT,
-    invested_amount REAL,
-    shares REAL,
-    purchase_price REAL,
-    purchase_date TEXT,
-    type TEXT,
-    tax_rate REAL,
-    currency TEXT DEFAULT 'EUR',
-    current_value REAL,
-    notes TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`, (err) => {
-    if (err) {
-      console.error('Errore creazione tabella investments:', err);
-    } else {
-      console.log('Tabella investments pronta');
-      
-      // Inserisci dati di esempio per testing
-      db.get("SELECT COUNT(*) as count FROM investments", (err, row) => {
-        if (!err && row.count === 0) {
-          const sampleData = [
-            ['Apple Inc.', 'US0378331005', 'AAPL', 5000, 10, 500, '2024-01-15', 'Azione', 26, 'USD', 5200, 'Investimento tecnologico'],
-            ['BTP Italia', 'IT0001234567', 'BTPI', 10000, 100, 100, '2024-02-01', 'Obbligazione', 12.5, 'EUR', 10100, 'BTP a tasso variabile']
-          ];
-          
-          sampleData.forEach(data => {
-            db.run(`INSERT INTO investments (title, isin, ticker, invested_amount, shares, purchase_price, purchase_date, type, tax_rate, currency, current_value, notes) 
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, data);
-          });
-          console.log('Dati di esempio inseriti');
-        }
-      });
-    }
+  // Abilita le foreign keys
+  db.run('PRAGMA foreign_keys = ON');
+  
+  db.serialize(() => {
+    db.run(`CREATE TABLE IF NOT EXISTS investments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      isin TEXT,
+      ticker TEXT,
+      invested_amount REAL,
+      shares REAL,
+      purchase_price REAL,
+      purchase_date TEXT,
+      type TEXT,
+      tax_rate REAL,
+      currency TEXT DEFAULT 'EUR',
+      current_value REAL,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`, (err) => {
+      if (err) {
+        console.error('Error creating investments table:', err);
+      } else {
+        console.log('Investments table ready');
+        
+        // Inserisci dati di esempio solo se la tabella è vuota
+        db.get("SELECT COUNT(*) as count FROM investments", (err, row) => {
+          if (!err && row.count === 0) {
+            const sampleData = [
+              ['Apple Inc.', 'US0378331005', 'AAPL', 5000, 10, 500, '2024-01-15', 'Azione', 26, 'USD', 5200, 'Investimento tecnologico'],
+              ['BTP Italia', 'IT0001234567', 'BTPI', 10000, 100, 100, '2024-02-01', 'Obbligazione', 12.5, 'EUR', 10100, 'BTP a tasso variabile']
+            ];
+            
+            const stmt = db.prepare(`INSERT INTO investments (title, isin, ticker, invested_amount, shares, purchase_price, purchase_date, type, tax_rate, currency, current_value, notes) 
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+            
+            sampleData.forEach(data => {
+              stmt.run(data, (err) => {
+                if (err) console.error('Error inserting sample data:', err);
+              });
+            });
+            
+            stmt.finalize();
+            console.log('Sample data inserted');
+          }
+        });
+      }
+    });
+
+    db.run(`CREATE TABLE IF NOT EXISTS coupons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      investment_id INTEGER,
+      coupon_date TEXT,
+      coupon_amount REAL,
+      is_paid INTEGER DEFAULT 0,
+      FOREIGN KEY(investment_id) REFERENCES investments(id)
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS monthly_performance (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      investment_id INTEGER,
+      month_year TEXT,
+      profit_loss REAL,
+      FOREIGN KEY(investment_id) REFERENCES investments(id)
+    )`);
   });
-
-  db.run(`CREATE TABLE IF NOT EXISTS coupons (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    investment_id INTEGER,
-    coupon_date TEXT,
-    coupon_amount REAL,
-    is_paid INTEGER DEFAULT 0,
-    FOREIGN KEY(investment_id) REFERENCES investments(id)
-  )`);
-
-  db.run(`CREATE TABLE IF NOT EXISTS monthly_performance (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    investment_id INTEGER,
-    month_year TEXT,
-    profit_loss REAL,
-    FOREIGN KEY(investment_id) REFERENCES investments(id)
-  )`);
 }
 
-// API Routes
+// API Routes con migliore gestione errori
 app.get('/api/investments', (req, res) => {
+  if (!db) {
+    return res.status(500).json({ error: 'Database not available' });
+  }
+  
   db.all('SELECT * FROM investments ORDER BY created_at DESC', (err, rows) => {
     if (err) {
-      console.error('Errore fetch investments:', err);
+      console.error('Error fetching investments:', err);
       res.status(500).json({ error: err.message });
       return;
     }
@@ -128,6 +149,10 @@ app.get('/api/investments', (req, res) => {
 });
 
 app.post('/api/investments', (req, res) => {
+  if (!db) {
+    return res.status(500).json({ error: 'Database not available' });
+  }
+  
   const { title, isin, ticker, invested_amount, shares, purchase_price, purchase_date, type, tax_rate, currency, notes } = req.body;
   
   db.run(
@@ -136,7 +161,7 @@ app.post('/api/investments', (req, res) => {
     [title, isin, ticker, invested_amount, shares, purchase_price, purchase_date, type, tax_rate, currency, notes],
     function(err) {
       if (err) {
-        console.error('Errore inserimento investment:', err);
+        console.error('Error inserting investment:', err);
         res.status(500).json({ error: err.message });
         return;
       }
@@ -146,6 +171,10 @@ app.post('/api/investments', (req, res) => {
 });
 
 app.put('/api/investments/:id', (req, res) => {
+  if (!db) {
+    return res.status(500).json({ error: 'Database not available' });
+  }
+  
   const { title, isin, ticker, invested_amount, shares, purchase_price, purchase_date, type, tax_rate, currency, current_value, notes } = req.body;
   
   db.run(
@@ -155,7 +184,7 @@ app.put('/api/investments/:id', (req, res) => {
     [title, isin, ticker, invested_amount, shares, purchase_price, purchase_date, type, tax_rate, currency, current_value, notes, req.params.id],
     function(err) {
       if (err) {
-        console.error('Errore aggiornamento investment:', err);
+        console.error('Error updating investment:', err);
         res.status(500).json({ error: err.message });
         return;
       }
@@ -165,9 +194,13 @@ app.put('/api/investments/:id', (req, res) => {
 });
 
 app.delete('/api/investments/:id', (req, res) => {
+  if (!db) {
+    return res.status(500).json({ error: 'Database not available' });
+  }
+  
   db.run('DELETE FROM investments WHERE id = ?', req.params.id, function(err) {
     if (err) {
-      console.error('Errore eliminazione investment:', err);
+      console.error('Error deleting investment:', err);
       res.status(500).json({ error: err.message });
       return;
     }
@@ -175,13 +208,18 @@ app.delete('/api/investments/:id', (req, res) => {
   });
 });
 
-// Health check endpoint
+// Health check endpoint migliorato
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  const health = {
+    status: 'OK',
     environment: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString()
-  });
+    timestamp: new Date().toISOString(),
+    database: db ? 'connected' : 'disconnected',
+    platform: process.platform,
+    node_version: process.version
+  };
+  
+  res.json(health);
 });
 
 // Route per la homepage
@@ -194,18 +232,27 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-// Gestione errori
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('Received SIGINT. Closing database connection...');
+  if (db) {
+    db.close((err) => {
+      if (err) {
+        console.error('Error closing database:', err.message);
+      } else {
+        console.log('Database connection closed.');
+      }
+      process.exit(0);
+    });
+  } else {
+    process.exit(0);
+  }
 });
 
 // Avvio server
 app.listen(PORT, () => {
-  console.log(`Server avviato sulla porta ${PORT}`);
-  console.log(`Ambiente: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Health check: http://localhost:${PORT}/api/health`);
-});
+  console.log(`🚀 Server avviato sulla porta ${PORT}`);
+  console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`💾 Database: ${dbPath}`);
+  console.log(`❤️  Health check: http://localhost:${PORT}/api/health`);
+}); s
