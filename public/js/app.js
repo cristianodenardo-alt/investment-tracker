@@ -14,6 +14,7 @@ class InvestmentTracker {
         document.getElementById('save-investment').addEventListener('click', () => this.saveInvestment());
         document.getElementById('search-input').addEventListener('input', (e) => this.filterInvestments(e.target.value));
         document.getElementById('type-filter').addEventListener('change', (e) => this.filterByType(e.target.value));
+        document.getElementById('update-all-prices').addEventListener('click', () => this.updateAllPrices());
     }
 
     async loadInvestments() {
@@ -183,6 +184,13 @@ class InvestmentTracker {
                 }
             });
         });
+
+        document.querySelectorAll('.update-price-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.updatePrice(parseInt(btn.dataset.id));
+            });
+        });
     }
 
     newInvestment() {
@@ -277,6 +285,73 @@ class InvestmentTracker {
             alert(`Dettagli per: ${investment.title}\nISIN: ${investment.isin || 'N/A'}\nTicker: ${investment.ticker || 'N/A'}`);
         }
     }
+
+    async updatePrice(investmentId) {
+  try {
+    const response = await fetch(`/api/investments/${investmentId}/update-price`, {
+      method: 'PUT'
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      // Mostra notifica
+      this.showNotification(`Prezzo aggiornato: €${result.current_price.toFixed(2)}`, 'success');
+      // Ricarica la lista
+      this.loadInvestments();
+    } else {
+      this.showNotification(`Errore: ${result.error}`, 'error');
+    }
+  } catch (error) {
+    console.error('Errore aggiornamento prezzo:', error);
+    this.showNotification('Errore nel collegamento al servizio prezzi', 'error');
+  }
+}
+
+async updateAllPrices() {
+  try {
+    this.showNotification('Aggiornamento prezzi in corso...', 'info');
+    
+    const response = await fetch('/api/investments/update-all-prices', {
+      method: 'PUT'
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      this.showNotification(
+        `Prezzi aggiornati: ${result.updated} successi, ${result.failed} falliti`, 
+        'success'
+      );
+      this.loadInvestments();
+    } else {
+      this.showNotification('Errore nell\'aggiornamento globale', 'error');
+    }
+  } catch (error) {
+    console.error('Errore aggiornamento globale:', error);
+    this.showNotification('Errore nel collegamento al servizio prezzi', 'error');
+  }
+}
+
+showNotification(message, type = 'info') {
+  // Crea una notifica temporanea
+  const notification = document.createElement('div');
+  notification.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+  notification.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 1000; min-width: 300px;';
+  notification.innerHTML = `
+    ${message}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  `;
+  
+  document.body.appendChild(notification);
+  
+  // Rimuovi automaticamente dopo 5 secondi
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.parentNode.removeChild(notification);
+    }
+  }, 5000);
+}
 }
 
 // Inizializza l'app quando il DOM è pronto
