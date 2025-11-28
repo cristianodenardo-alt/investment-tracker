@@ -40,29 +40,32 @@ class InvestmentTracker {
             const card = document.createElement('div');
             card.className = 'col-md-6 col-lg-4 mb-3';
             card.innerHTML = `
-                <div class="card investment-card" data-id="${investment.id}">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <h5 class="card-title">${investment.title}</h5>
-                            <span class="badge bg-secondary">${investment.type}</span>
-                        </div>
-                        <p class="card-text mb-1"><small class="text-muted">ISIN: ${investment.isin || 'N/A'}</small></p>
-                        <p class="card-text mb-1">Investito: €${parseFloat(investment.invested_amount).toFixed(2)}</p>
-                        <p class="card-text mb-1">Valore attuale: €${parseFloat(currentValue).toFixed(2)}</p>
-                        <p class="card-text ${profit >= 0 ? 'profit-positive' : 'profit-negative'}">
-                            ${profit >= 0 ? '+' : ''}€${profit.toFixed(2)} (${profitPercentage}%)
-                        </p>
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-primary edit-btn" data-id="${investment.id}">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-outline-danger delete-btn" data-id="${investment.id}">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
+            <div class="card investment-card" data-id="${investment.id}">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <h5 class="card-title">${investment.title}</h5>
+                        <span class="badge bg-secondary">${investment.type}</span>
+                    </div>
+                    <p class="card-text mb-1"><small class="text-muted">ISIN: ${investment.isin || 'N/A'}</small></p>
+                    <p class="card-text mb-1">Investito: €${parseFloat(investment.invested_amount).toFixed(2)}</p>
+                    <p class="card-text mb-1">Valore attuale: €${parseFloat(currentValue).toFixed(2)}</p>
+                    <p class="card-text ${profit >= 0 ? 'profit-positive' : 'profit-negative'}">
+                        ${profit >= 0 ? '+' : ''}€${profit.toFixed(2)} (${profitPercentage}%)
+                    </p>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary edit-btn" data-id="${investment.id}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-outline-success update-price-btn" data-id="${investment.id}" title="Aggiorna prezzo">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button class="btn btn-outline-danger delete-btn" data-id="${investment.id}">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </div>
                 </div>
-            `;
+            </div>
+        `;
             container.appendChild(card);
         });
 
